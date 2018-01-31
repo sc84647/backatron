@@ -1,0 +1,52 @@
+#!/bin/sh -
+
+## This script uses rsync to incrementally backup from Synology NAS 
+
+SYNOLOGY_HOST=192.168.1.7
+SYNOLOGY_USER=admin
+
+LOCAL_FILESTORE=/var/backup/synology
+
+## The marker file tells root when to initiate shutdown
+rm -f /tmp/shutdown.marker
+
+RTC_START=`date +%c -d11:45`
+NOW_START=`date +%c`
+TIMEDIFF=`printf "%s\n" $(( $(date -d "$NOW_START" "+%s") - $(date -d "$RTC_START" "+%s") ))`
+
+echo "Seconds since assumed RTC wakeup: "$TIMEDIFF
+echo "Running as user: `whoami`"
+
+MODE=$1
+
+UNATTENDED=false
+##if [ `cut -f1 /proc/uptime -d'.'` -lt 180 -a "$PARAM" != "manual" ]; then 
+if [ "$TIMEDIFF" -lt 180 -a "$TIMEDIFF" -ge 0 -a "$MODE" != "manual" ]; then 
+  ## Less than 3 minutes since the RTC start time and the boot flag was passed, so
+  ## assume this was started from cron boot entry and system started via RTC timer
+  MODE=automatic
+  echo "Script starting due to RTC wakeup; scheduling shutdown in 60 minutes or on completion if sooner"
+  ## Prepare a background task to shutdown in 60 minutes
+  (nohup sleep 3600; touch /tmp/shutdown.marker) &
+fi
+
+#export RSYNC_PASSWORD=<password>
+
+VOLUME=Steve2
+EXCLUDES=/ToshBackup
+
+if [ -n "$EXCLUDES" ]; then
+  EXCLUDE_OPT="--exclude $EXCLUDES"
+else
+  EXCLUDE_OPT=""
+fi
+##Rsync protocol form:
+##rsync -avr $EXCLUDE_OPT -e "/usr/bin/ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" $SYNOLOGY_USER@$SYNOLOGY_HOST::$VOLUME $LOCAL_FILESTORE/$VOLUME
+##SSH protocol form:
+rsync -avr $EXCLUDE_OPT -e "/usr/bin/ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" $SYNOLOGY_USER@$SYNOLOGY_HOST:/volume1/$VOLUME $LOCAL_FILESTORE
+
+if [ "$MODE" = "automatic" ]; then
+  ## Initiate shutdown
+  touch /tmp/shutdown.marker
+fi
+

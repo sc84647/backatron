@@ -1,0 +1,10 @@
+#!/bin/bash -
+
+## Wake the machine in 3 minutes
+
+if [[ "$EUID" -ne 0 ]]; then 
+  echo "Please run as root"
+  exit 1
+fi
+sh -c "echo 0 > /sys/class/rtc/rtc0/wakealarm"
+sh -c "echo `date '+%s' -d '+ 3 minutes'` > /sys/class/rtc/rtc0/wakealarm"
