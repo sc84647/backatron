@@ -32,18 +32,41 @@ fi
 
 #export RSYNC_PASSWORD=<password>
 
-VOLUME=Steve2
-EXCLUDES=/ToshBackup
+doSync() {
+  if [ -n "$EXCLUDES" ]; then
+    EXCLUDE_OPT="--exclude $EXCLUDES"
+  else
+    EXCLUDE_OPT=""
+  fi
+  ##Rsync protocol form:
+  ##rsync -avr $EXCLUDE_OPT -e "/usr/bin/ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" $SYNOLOGY_USER@$SYNOLOGY_HOST::$VOLUME $LOCAL_FILESTORE/$VOLUME
+  ##SSH protocol form:
+  rsync -avr --delete $EXCLUDE_OPT -e "/usr/bin/ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" $SYNOLOGY_USER@$SYNOLOGY_HOST:/volume1/$VOLUME $LOCAL_FILESTORE
+}
 
-if [ -n "$EXCLUDES" ]; then
-  EXCLUDE_OPT="--exclude $EXCLUDES"
-else
-  EXCLUDE_OPT=""
-fi
-##Rsync protocol form:
-##rsync -avr $EXCLUDE_OPT -e "/usr/bin/ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" $SYNOLOGY_USER@$SYNOLOGY_HOST::$VOLUME $LOCAL_FILESTORE/$VOLUME
-##SSH protocol form:
-rsync -avr $EXCLUDE_OPT -e "/usr/bin/ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" $SYNOLOGY_USER@$SYNOLOGY_HOST:/volume1/$VOLUME $LOCAL_FILESTORE
+VOLUME=Steve2
+EXCLUDES=$VOLUME/ToshBackup
+doSync
+
+VOLUME=Steve
+EXCLUDES=
+doSync
+
+VOLUME=web
+EXCLUDES=
+doSync
+
+VOLUME=photo
+EXCLUDES=
+doSync
+
+VOLUME=homes
+EXCLUDES=
+doSync
+
+VOLUME=Natalie
+EXCLUDES=
+doSync
 
 if [ "$MODE" = "automatic" ]; then
   ## Initiate shutdown
