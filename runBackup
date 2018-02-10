@@ -1,4 +1,4 @@
-#!/bin/sh -
+#!/bin/bash -x
 
 ## This script uses rsync to incrementally backup from Synology NAS 
 
@@ -19,10 +19,14 @@ echo "Running as user: `whoami`"
 
 MODE=$1
 
+TMPDIR=`mktemp -d`
+FILE_WORKSIZE=$TMPDIR/rsync-worksize	## The initial dry run estimate of work
+FILE_PROGRESS=$TMPDIR/rsync-progress	## The progress output from rsync
+
 UNATTENDED=false
 ##if [ `cut -f1 /proc/uptime -d'.'` -lt 180 -a "$PARAM" != "manual" ]; then 
-if [ "$TIMEDIFF" -lt 180 -a "$TIMEDIFF" -ge 0 -a "$MODE" != "manual" ]; then 
-  ## Less than 3 minutes since the RTC start time and the boot flag was passed, so
+if [ "$TIMEDIFF" -lt 900 -a "$TIMEDIFF" -ge 0 -a "$MODE" != "manual" ]; then 
+  ## Less than 15 minutes since the RTC start time and the boot flag was passed, so
   ## assume this was started from cron boot entry and system started via RTC timer
   MODE=automatic
   echo "Script starting due to RTC wakeup; scheduling shutdown in 60 minutes or on completion if sooner"
@@ -32,40 +36,40 @@ fi
 
 #export RSYNC_PASSWORD=<password>
 
-doSync() {
-  if [ -n "$EXCLUDES" ]; then
-    EXCLUDE_OPT="--exclude $EXCLUDES"
-  else
-    EXCLUDE_OPT=""
-  fi
-  ##Rsync protocol form:
-  ##rsync -avr $EXCLUDE_OPT -e "/usr/bin/ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" $SYNOLOGY_USER@$SYNOLOGY_HOST::$VOLUME $LOCAL_FILESTORE/$VOLUME
-  ##SSH protocol form:
-  rsync -avr --delete $EXCLUDE_OPT -e "/usr/bin/ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" $SYNOLOGY_USER@$SYNOLOGY_HOST:/volume1/$VOLUME $LOCAL_FILESTORE
+spawnProgressReporting() {
+  ## Progress reporter - background task
+  (
+  while true; do
+    if [ -f "$FILE_WORKSIZE" -a -f "$FILE_PROGRESS" ]; then
+      #INITIAL_WORKSIZE=`grep "xfr#" $FILE_WORKSIZE | tail -1 | cut -f1 -d' ' | tr -d ',' | tr -d ' '`
+      INITIAL_WORKSIZE=`grep "xfr#" $FILE_WORKSIZE | tail -1 | sed -e 's/^ *//g' | sed -e 's/ .*$//g' | tr -d ','`
+      ##PROCESSED_WORKSIZE=`grep "xfr#" $FILE_PROGRESS | tail -1 | cut -f1 -d' ' | tr -d ',' | tr -d ' '`
+      PROCESSED_WORKSIZE=`grep "xfr#" $FILE_PROGRESS | tail -1 | sed -e 's/^ *//g' | sed -e 's/ .*$//g' | tr -d ','`
+      REMAINING_WORKSIZE=$(( INITIAL_WORKSIZE - PROCESSED_WORKSIZE ))  
+      REMAINING_WORKSIZE=$(( REMAINING_WORKSIZE > 0 ? REMAINING_WORKSIZE : 0 ))  
+      echo "Reporting: INITIAL: [$INITIAL_WORKSIZE] PROCESSED: [$PROCESSED_WORKSIZE] REMAINING: [$REMAINING_WORKSIZE]"
+      echo -n "backatron.workload.remaining:$REMAINING_WORKSIZE|g|#workload" | nc -4u -w1 localhost 8125
+    else
+      echo "Not reporting stats as rsync outputs not found yet"
+    fi
+    sleep 15
+  done
+  ) &
+  REPORTER_PID=$!
 }
 
-VOLUME=Steve2
-EXCLUDES=$VOLUME/ToshBackup
-doSync
+doSync() {
+  ##  Get size of required transfers
+  SOURCEPATHS=`eval echo "$SYNOLOGY_USER@$SYNOLOGY_HOST:/volume1/$VOLUME"`
+  rsync --dry-run -ar --delete --info=progress2 -e "/usr/bin/ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" $SOURCEPATHS $LOCAL_FILESTORE | tr '\r' '\n' > $FILE_WORKSIZE
+  ## Now do actual sync
+  rsync -ar --delete --info=progress2 -e "/usr/bin/ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" $SOURCEPATHS $LOCAL_FILESTORE | tr '\r' '\n' > $FILE_PROGRESS
+}
 
-VOLUME=Steve
-EXCLUDES=
-doSync
+spawnProgressReporting
 
-VOLUME=web
-EXCLUDES=
-doSync
-
-VOLUME=photo
-EXCLUDES=
-doSync
-
-VOLUME=homes
-EXCLUDES=
-doSync
-
-VOLUME=Natalie
-EXCLUDES=
+#VOLUME={Steve2,homes,Steve,web,photo,Natalie}
+VOLUME={Steve2,homes,web,photo,Natalie}
 doSync
 
 if [ "$MODE" = "automatic" ]; then
@@ -73,3 +77,6 @@ if [ "$MODE" = "automatic" ]; then
   touch /tmp/shutdown.marker
 fi
 
+kill $REPORTER_PID
+ 
+exit 0
