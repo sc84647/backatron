@@ -1,0 +1,48 @@
+#! /bin/sh
+### BEGIN INIT INFO
+# Provides: backatron
+# Required-Start:    $syslog $time $remote_fs $rsync
+# Required-Stop:     $syslog $time $remote_fs $rsync
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Backup via rsync from Synology NAS
+# Description: 	     Debian init script for the backatron
+### END INIT INFO
+#
+
+PATH=/bin:/usr/bin:/sbin:/usr/sbin
+DAEMON=/home/steve/backatron/startBackup
+PIDFILE=/var/run/backatron.pid
+DESC=backatron
+
+test -x $DAEMON || exit 0
+
+. /lib/lsb/init-functions
+
+case "$1" in
+  start)
+	log_daemon_msg "Starting $DESC" "$DESC"
+	start_daemon -p $PIDFILE $DAEMON
+        log_end_msg $?
+  ;;
+  stop)
+	log_daemon_msg "Stopping $DESC" "$DESC"
+	killproc -p $PIDFILE $DAEMON
+	log_end_msg $?
+  ;;
+  restart|force-reload)
+	$0 stop
+	$0 start
+  ;;
+  status)
+	status_of_proc -p $PIDFILE "$DAEMON" "$DESC" && exit 0 || exit $?
+  ;;
+  *)
+	N=/etc/init.d/backatron
+	echo "Usage: $N {start|stop|restart|force-reload|status}" >&2
+	exit 1
+	;;
+esac
+
+exit 0
+

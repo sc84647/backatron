@@ -5,7 +5,7 @@
 SYNOLOGY_HOST=192.168.1.7
 SYNOLOGY_USER=admin
 
-LOCAL_FILESTORE=/var/backup/synology
+LOCAL_FILESTORE=/var/backups/synology
 
 ## The marker file tells root when to initiate shutdown
 rm -f /tmp/shutdown.marker
@@ -69,7 +69,7 @@ doSync() {
 spawnProgressReporting
 
 #VOLUME={Steve2,homes,Steve,web,photo,Natalie}
-VOLUME={Steve2,homes,web,photo,Natalie}
+VOLUME={Steve2,homes,web,photo,Natalie,Steve}
 doSync
 
 if [ "$MODE" = "automatic" ]; then
