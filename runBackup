@@ -69,7 +69,7 @@ doSync() {
 spawnProgressReporting
 
 #VOLUME={Steve2,homes,Steve,web,photo,Natalie}
-VOLUME={Steve2,homes,web,photo,Natalie,Steve}
+VOLUME={Steve2,homes,web,photo,Natalie,Steve,video,git,gitea}
 doSync
 
 if [ "$MODE" = "automatic" ]; then
