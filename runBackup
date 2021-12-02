@@ -1,4 +1,5 @@
 #!/bin/bash -x
+set -e 
 
 ## This script uses rsync to incrementally backup from Synology NAS 
 
